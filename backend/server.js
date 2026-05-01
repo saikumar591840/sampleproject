@@ -1,0 +1,54 @@
+require('dotenv').config({ override: true });
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const path = require('path');
+
+const authRoutes = require('./routes/authRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const taskRoutes = require('./routes/taskRoutes');
+const { errorHandler } = require('./middleware/errorMiddleware');
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// Database connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/projects', projectRoutes);
+
+// For nested task routes, we can mount them either on /api/tasks or under projects.
+// E.g., /api/projects/:projectId/tasks or /api/tasks
+// The controller currently expects /api/projects/:projectId/tasks for get/create, 
+// and /api/tasks/:id for update/delete. 
+// Let's mount taskRoutes on both for simplicity, or re-structure.
+app.use('/api/projects/:projectId/tasks', taskRoutes);
+app.use('/api/tasks', taskRoutes);
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+  app.get('*', (req, res) =>
+    res.sendFile(
+      path.resolve(__dirname, '../frontend', 'dist', 'index.html')
+    )
+  );
+} else {
+  // Base route
+  app.get('/', (req, res) => {
+    res.send('Team Task Manager API is running');
+  });
+}
+
+// Global Error Handler
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
